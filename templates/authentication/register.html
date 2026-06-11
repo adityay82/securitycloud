@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block title %}Create Account{% endblock %}
+
+{% block auth_content %}
+<div class="auth-page">
+  <div class="auth-bg">
+    <div class="auth-grid"></div>
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
+  </div>
+
+  <!-- Left Panel -->
+  <div class="auth-left d-none d-xl-flex">
+    <div class="auth-brand">
+      <div class="auth-brand-icon mb-4">🛡️</div>
+      <h1 class="auth-brand-title">Join CloudSec</h1>
+      <p class="auth-brand-sub">Enterprise Cloud Security Platform</p>
+      <div class="auth-features mt-5">
+        <div class="auth-feature-item">
+          <div class="auth-feature-icon bg-blue"><i class="fas fa-envelope-circle-check"></i></div>
+          <div>
+            <div class="auth-feature-title">Email Verification</div>
+            <div class="auth-feature-desc">OTP sent to confirm your identity</div>
+          </div>
+        </div>
+        <div class="auth-feature-item">
+          <div class="auth-feature-icon bg-purple"><i class="fas fa-shield-halved"></i></div>
+          <div>
+            <div class="auth-feature-title">Adaptive MFA on Every Login</div>
+            <div class="auth-feature-desc">ML-assessed risk determines verification level</div>
+          </div>
+        </div>
+        <div class="auth-feature-item">
+          <div class="auth-feature-icon bg-green"><i class="fas fa-file-lock"></i></div>
+          <div>
+            <div class="auth-feature-title">Encrypted File Vault</div>
+            <div class="auth-feature-desc">Auto-selected AES-128/192/256 per file</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="auth-right" style="max-width:560px;">
+    <div class="auth-card glass-card" style="padding:2rem;">
+      <div class="d-xl-none text-center mb-4">
+        <div class="d-inline-flex align-items-center gap-2">
+          <span style="font-size:1.75rem">🛡️</span>
+          <span style="font-size:1.25rem;font-weight:800;background:linear-gradient(135deg,#00d4ff,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent">CloudSec</span>
+        </div>
+      </div>
+      <h2 class="auth-form-title">Create Account</h2>
+      <p class="auth-form-sub">Fill in the details below. An OTP will be sent to verify your email.</p>
+
+      {% if messages %}{% for message in messages %}
+      <div class="alert alert-{{ message.tags }} py-2 mb-3">{{ message }}</div>
+      {% endfor %}{% endif %}
+
+      <form method="post" action="{% url 'authentication:register' %}" class="cs-form" id="reg-form">
+        {% csrf_token %}
+        <div class="row g-3">
+          <div class="col-6">
+            <label>First Name</label>
+            {{ form.first_name }}
+            {% if form.first_name.errors %}<div class="field-error">{{ form.first_name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-6">
+            <label>Last Name</label>
+            {{ form.last_name }}
+            {% if form.last_name.errors %}<div class="field-error">{{ form.last_name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-12">
+            <label>Username</label>
+            {{ form.username }}
+            {% if form.username.errors %}<div class="field-error">{{ form.username.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-12">
+            <label>Email Address</label>
+            {{ form.email }}
+            {% if form.email.errors %}<div class="field-error">{{ form.email.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-12">
+            <label>Phone <span style="color:var(--cs-muted);font-weight:400">(Optional)</span></label>
+            {{ form.phone }}
+            {% if form.phone.errors %}<div class="field-error">{{ form.phone.errors.0 }}</div>{% endif %}
+          </div>
+
+          <!-- Password fields -->
+          <div class="col-6">
+            <label>Password</label>
+            <div class="input-group-cs">
+              {{ form.password1 }}
+              <button type="button" class="toggle-password" onclick="togglePwd('id_password1', this)">
+                <i class="fas fa-eye"></i>
+              </button>
+            </div>
+            {% if form.password1.errors %}<div class="field-error">{{ form.password1.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-6">
+            <label>Confirm Password</label>
+            <div class="input-group-cs">
+              {{ form.password2 }}
+              <button type="button" class="toggle-password" onclick="togglePwd('id_password2', this)">
+                <i class="fas fa-eye"></i>
+              </button>
+            </div>
+            {% if form.password2.errors %}<div class="field-error">{{ form.password2.errors.0 }}</div>{% endif %}
+          </div>
+
+          <!-- Password strength bar -->
+          <div class="col-12">
+            <div class="d-flex justify-content-between" style="font-size:0.7rem;color:var(--cs-muted);margin-bottom:3px">
+              <span>Password Strength</span>
+              <span id="pwd-strength-label">—</span>
+            </div>
+            <div class="risk-bar">
+              <div id="pwd-strength-bar" class="risk-bar-fill" style="width:0%;transition:all 0.4s;"></div>
+            </div>
+          </div>
+
+          <!-- Security Question (for adaptive MFA) -->
+          <div class="col-12">
+            <label>Security Question <span style="color:var(--cs-muted);font-weight:400">(for medium-risk login verification)</span></label>
+            {{ form.security_question }}
+          </div>
+          <div class="col-12" id="security-answer-field" style="display:none">
+            <label>Your Answer</label>
+            {{ form.security_answer }}
+            <div style="font-size:0.7rem;color:var(--cs-muted);margin-top:3px">
+              <i class="fas fa-info-circle me-1"></i>Used for verification when ML detects medium-risk login
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-cs w-100 py-3 mt-4" id="reg-btn">
+          <span id="reg-btn-text"><i class="fas fa-user-plus me-2"></i>Create Secure Account</span>
+          <span id="reg-btn-loading" class="d-none"><span class="spinner-border spinner-border-sm me-2"></span>Creating account...</span>
+        </button>
+
+        <div class="text-center mt-3">
+          <span style="font-size:0.8rem;color:var(--cs-muted)">Already registered?</span>
+          <a href="{% url 'authentication:login' %}" class="auth-link ms-1" style="font-size:0.8rem">Sign In</a>
+        </div>
+
+        <p class="auth-notice mt-3">
+          <i class="fas fa-envelope-circle-check me-1"></i>
+          An OTP will be sent to your email address to verify your account.
+        </p>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+  .auth-page { display:flex; min-height:100vh; background:var(--cs-darker); position:relative; overflow:hidden; }
+  .auth-bg { position:fixed; inset:0; pointer-events:none; z-index:0; }
+  .auth-grid { position:absolute; inset:0; background-image:linear-gradient(rgba(0,212,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.03) 1px,transparent 1px); background-size:50px 50px; }
+  .glow-orb { position:absolute; border-radius:50%; filter:blur(80px); opacity:0.15; }
+  .orb-1 { width:400px; height:400px; background:var(--cs-accent); top:-100px; right:-100px; }
+  .orb-2 { width:300px; height:300px; background:var(--cs-accent-2); bottom:-80px; left:-80px; }
+  .auth-left { flex:1; background:rgba(5,8,16,0.6); border-right:1px solid var(--cs-border); display:flex; align-items:center; justify-content:center; padding:3rem; position:relative; z-index:1; }
+  .auth-brand { max-width:400px; }
+  .auth-brand-icon { font-size:3rem; }
+  .auth-brand-title { font-size:2.25rem; font-weight:900; letter-spacing:-1px; background:linear-gradient(135deg,var(--cs-accent),var(--cs-accent-2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin:0; }
+  .auth-brand-sub { color:var(--cs-muted-2); font-size:0.9rem; margin-top:0.25rem; }
+  .auth-feature-item { display:flex; align-items:center; gap:1rem; margin-bottom:1.25rem; }
+  .auth-feature-icon { width:40px; height:40px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:1rem; }
+  .bg-blue { background:rgba(0,212,255,0.12); color:var(--cs-accent); }
+  .bg-purple { background:rgba(124,58,237,0.12); color:#a78bfa; }
+  .bg-green { background:rgba(16,185,129,0.12); color:var(--cs-success); }
+  .auth-feature-title { font-size:0.88rem; font-weight:600; }
+  .auth-feature-desc { font-size:0.75rem; color:var(--cs-muted-2); margin-top:0.1rem; }
+  .auth-right { display:flex; align-items:center; justify-content:center; padding:2rem 1.5rem; position:relative; z-index:1; width:100%; }
+  .auth-card { width:100%; padding:2rem; animation:fadeUp 0.5s ease; }
+  .auth-form-title { font-size:1.4rem; font-weight:800; margin-bottom:0.25rem; }
+  .auth-form-sub { color:var(--cs-muted-2); font-size:0.83rem; margin-bottom:1.25rem; }
+  .auth-link { color:var(--cs-accent); text-decoration:none; }
+  .auth-link:hover { color:#7c3aed; }
+  .auth-notice { font-size:0.72rem; color:var(--cs-muted); text-align:center; margin:0; }
+  .field-error { color:#f87171; font-size:0.72rem; margin-top:0.3rem; }
+  .input-group-cs { position:relative; }
+  .toggle-password { position:absolute; right:0.75rem; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--cs-muted); cursor:pointer; z-index:1; padding:0.25rem; }
+  .toggle-password:hover { color:var(--cs-accent); }
+</style>
+
+<script>
+function togglePwd(id, btn) {
+  const input = document.getElementById(id);
+  const isText = input.type === 'text';
+  input.type = isText ? 'password' : 'text';
+  btn.querySelector('i').className = isText ? 'fas fa-eye' : 'fas fa-eye-slash';
+}
+
+// Password strength
+const pwdInput = document.getElementById('id_password1');
+const bar = document.getElementById('pwd-strength-bar');
+const label = document.getElementById('pwd-strength-label');
+if (pwdInput) {
+  pwdInput.addEventListener('input', function() {
+    const p = this.value;
+    let score = 0;
+    if (p.length >= 8) score++;
+    if (p.length >= 12) score++;
+    if (/[A-Z]/.test(p)) score++;
+    if (/[a-z]/.test(p)) score++;
+    if (/\d/.test(p)) score++;
+    if (/[^A-Za-z0-9]/.test(p)) score++;
+    const levels = [
+      { pct: 0,   color: 'transparent', text: '—' },
+      { pct: 16,  color: '#ef4444', text: 'Very Weak' },
+      { pct: 33,  color: '#f97316', text: 'Weak' },
+      { pct: 50,  color: '#f59e0b', text: 'Fair' },
+      { pct: 66,  color: '#84cc16', text: 'Good' },
+      { pct: 83,  color: '#10b981', text: 'Strong' },
+      { pct: 100, color: '#00d4ff', text: 'Very Strong' },
+    ];
+    const lvl = levels[Math.min(score, 6)];
+    bar.style.width = lvl.pct + '%';
+    bar.style.background = lvl.color;
+    label.textContent = lvl.text;
+    label.style.color = lvl.color;
+  });
+}
+
+// Toggle security answer field
+const secQ = document.getElementById('id_security_question');
+const secA = document.getElementById('security-answer-field');
+if (secQ) {
+  secQ.addEventListener('change', () => {
+    secA.style.display = secQ.value ? 'block' : 'none';
+  });
+}
+
+// Loading state
+document.getElementById('reg-form').addEventListener('submit', function() {
+  document.getElementById('reg-btn-text').classList.add('d-none');
+  document.getElementById('reg-btn-loading').classList.remove('d-none');
+  document.getElementById('reg-btn').disabled = true;
+});
+</script>
+{% endblock %}

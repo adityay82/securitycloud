@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+{% block title %}Admin Security Dashboard{% endblock %}
+{% block page_title %}<i class="fas fa-chart-pie me-2" style="color:var(--cs-accent)"></i>Security Command Center{% endblock %}
+
+{% block content %}
+<!-- ═══ Security Score + Quick Stats ══════════════════════════════════════ -->
+<div class="row g-3 mb-4">
+  <!-- Security Score -->
+  <div class="col-xl-3 col-md-6">
+    <div class="cs-card h-100 text-center">
+      <div class="cs-card-header">
+        <span class="cs-card-title"><i class="fas fa-shield-halved me-1" style="color:var(--cs-accent)"></i>Security Score</span>
+        <span class="badge badge-risk-{% if security_score >= 70 %}low{% elif security_score >= 50 %}medium{% else %}high{% endif %} px-2">
+          {% if security_score >= 70 %}Good{% elif security_score >= 50 %}Fair{% else %}Critical{% endif %}
+        </span>
+      </div>
+      <div class="score-value" style="font-size:3.5rem">{{ security_score }}</div>
+      <div style="font-size:0.75rem;color:var(--cs-muted);margin-top:0.25rem">out of 100</div>
+      <div class="risk-bar mt-3">
+        <div class="risk-bar-fill" style="width:{{ security_score }}%;background:{% if security_score >= 70 %}var(--cs-success){% elif security_score >= 50 %}var(--cs-warning){% else %}var(--cs-danger){% endif %}"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Users -->
+  <div class="col-xl-3 col-md-6">
+    <div class="stat-card stat-blue h-100 fade-up">
+      <div class="stat-icon"><i class="fas fa-users"></i></div>
+      <div class="stat-value">{{ total_users }}</div>
+      <div class="stat-label">Total Users</div>
+      <div class="mt-2 d-flex gap-2 flex-wrap">
+        <span class="badge badge-risk-low">{{ active_users }} Active</span>
+        {% if pending_users %}<span class="badge badge-risk-medium">{{ pending_users }} Pending</span>{% endif %}
+        {% if suspended_users %}<span class="badge badge-risk-high">{{ suspended_users }} Suspended</span>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Logins (7d) -->
+  <div class="col-xl-3 col-md-6">
+    <div class="stat-card stat-purple h-100 fade-up">
+      <div class="stat-icon"><i class="fas fa-right-to-bracket"></i></div>
+      <div class="stat-value">{{ total_logins }}</div>
+      <div class="stat-label">Logins (7 Days)</div>
+      <div class="mt-2 d-flex gap-2 flex-wrap">
+        <span class="badge badge-risk-low">{{ successful_logins }} OK</span>
+        <span class="badge badge-risk-high">{{ suspicious_logins }} Suspicious</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Files -->
+  <div class="col-xl-3 col-md-6">
+    <div class="stat-card stat-green h-100 fade-up">
+      <div class="stat-icon"><i class="fas fa-file-shield"></i></div>
+      <div class="stat-value">{{ total_files }}</div>
+      <div class="stat-label">Encrypted Files</div>
+      <div class="mt-2 d-flex gap-2 flex-wrap">
+        <span class="badge" style="background:rgba(16,185,129,0.1);color:#34d399;border:1px solid rgba(16,185,129,0.2);">{{ avg_enc_time }}ms avg</span>
+        <span class="badge" style="background:rgba(0,212,255,0.1);color:var(--cs-accent);border:1px solid rgba(0,212,255,0.2);">{{ total_size_gb }}GB total</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ IDS Threat Intelligence + Charts Row ══════════════════════════════ -->
+<div class="row g-3 mb-4">
+  <!-- IDS Threat Summary -->
+  <div class="col-xl-4">
+    <div class="cs-card h-100">
+      <div class="cs-card-header">
+        <span class="cs-card-title">
+          <i class="fas fa-radar me-1" style="color:var(--cs-danger)"></i>IDS Threat Intelligence
+        </span>
+        <span class="badge badge-risk-{% if threat_summary.unresolved_count == 0 %}low{% elif threat_summary.unresolved_count < 5 %}medium{% else %}high{% endif %} px-2">
+          {{ threat_summary.unresolved_count }} Unresolved
+        </span>
+      </div>
+      <div class="threat-grid">
+        <div class="threat-stat-row">
+          <span><i class="fas fa-bomb me-2" style="color:var(--cs-danger);width:18px"></i>Brute Force</span>
+          <span class="badge badge-risk-{% if threat_summary.brute_force_count == 0 %}low{% else %}high{% endif %}">{{ threat_summary.brute_force_count }}</span>
+        </div>
+        <div class="threat-stat-row">
+          <span><i class="fas fa-location-dot me-2" style="color:var(--cs-warning);width:18px"></i>IP Changes</span>
+          <span class="badge badge-risk-{% if threat_summary.ip_change_count == 0 %}low{% else %}medium{% endif %}">{{ threat_summary.ip_change_count }}</span>
+        </div>
+        <div class="threat-stat-row">
+          <span><i class="fas fa-moon me-2" style="color:#a78bfa;width:18px"></i>Unusual Hours</span>
+          <span class="badge badge-risk-{% if threat_summary.unusual_hours_count == 0 %}low{% else %}medium{% endif %}">{{ threat_summary.unusual_hours_count }}</span>
+        </div>
+        <div class="threat-stat-row">
+          <span><i class="fas fa-xmark-circle me-2" style="color:var(--cs-warning);width:18px"></i>Auth Failures</span>
+          <span class="badge badge-risk-{% if threat_summary.multiple_failures_count == 0 %}low{% else %}high{% endif %}">{{ threat_summary.multiple_failures_count }}</span>
+        </div>
+        <div class="threat-stat-row">
+          <span><i class="fas fa-eye me-2" style="color:var(--cs-accent);width:18px"></i>Suspicious Logins (7d)</span>
+          <span class="badge badge-risk-{% if threat_summary.suspicious_logins == 0 %}low{% elif threat_summary.suspicious_logins < 10 %}medium{% else %}high{% endif %}">{{ threat_summary.suspicious_logins }}</span>
+        </div>
+        <div class="threat-stat-row">
+          <span><i class="fas fa-clock me-2" style="color:var(--cs-muted-2);width:18px"></i>Events (24h)</span>
+          <span class="badge" style="background:rgba(0,212,255,0.1);color:var(--cs-accent);border:1px solid rgba(0,212,255,0.2);">{{ threat_summary.recent_24h }}</span>
+        </div>
+      </div>
+      <div class="mt-3">
+        <a href="{% url 'audit:security_events' %}" class="btn-cs-outline w-100 text-center d-block py-2">
+          <i class="fas fa-arrow-right me-1"></i>View All Security Events
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Trend Chart -->
+  <div class="col-xl-5">
+    <div class="cs-card h-100">
+      <div class="cs-card-header">
+        <span class="cs-card-title"><i class="fas fa-chart-line me-1" style="color:var(--cs-accent)"></i>7-Day Login Trend</span>
+      </div>
+      <canvas id="loginTrendChart" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- Encryption Distribution -->
+  <div class="col-xl-3">
+    <div class="cs-card h-100">
+      <div class="cs-card-header">
+        <span class="cs-card-title"><i class="fas fa-lock me-1" style="color:var(--cs-success)"></i>Encryption Types</span>
+      </div>
+      <canvas id="encDonutChart" height="200"></canvas>
+      <div class="d-flex flex-column gap-1 mt-2">
+        <div class="d-flex align-items-center gap-2 justify-content-between">
+          <span style="font-size:0.78rem"><span class="badge enc-badge-128">AES-128</span></span>
+          <span style="font-size:0.85rem;font-weight:600">{{ enc_dist.aes128 }}</span>
+        </div>
+        <div class="d-flex align-items-center gap-2 justify-content-between">
+          <span style="font-size:0.78rem"><span class="badge enc-badge-192">AES-192</span></span>
+          <span style="font-size:0.85rem;font-weight:600">{{ enc_dist.aes192 }}</span>
+        </div>
+        <div class="d-flex align-items-center gap-2 justify-content-between">
+          <span style="font-size:0.78rem"><span class="badge enc-badge-256">AES-256</span></span>
+          <span style="font-size:0.85rem;font-weight:600">{{ enc_dist.aes256 }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Risk Distribution + Recent Events + Pending Approvals ═══════════ -->
+<div class="row g-3 mb-4">
+  <!-- Risk Distribution -->
+  <div class="col-xl-4">
+    <div class="cs-card h-100">
+      <div class="cs-card-header">
+        <span class="cs-card-title"><i class="fas fa-chart-bar me-1" style="color:var(--cs-warning)"></i>Risk Distribution (7d)</span>
+      </div>
+      <canvas id="riskBarChart" height="180"></canvas>
+    </div>
+  </div>
+
+  <!-- Recent Security Events -->
+  <div class="col-xl-4">
+    <div class="cs-card h-100">
+      <div class="cs-card-header">
+        <span class="cs-card-title"><i class="fas fa-bell me-1" style="color:var(--cs-danger)"></i>Security Alerts</span>
+        <a href="{% url 'audit:security_events' %}" class="btn-cs-outline py-1 px-2" style="font-size:0.75rem">View All</a>
+      </div>
+      {% if recent_security_events %}
+        {% for event in recent_security_events %}
+        <div class="threat-item">
+          <div class="threat-dot mt-1" style="background:{% if event.risk_score >= 0.7 %}var(--cs-danger){% elif event.risk_score >= 0.4 %}var(--cs-warning){% else %}var(--cs-success){% endif %}"></div>
+          <div class="overflow-hidden">
+            <div style="font-size:0.83rem;font-weight:600">{{ event.get_event_type_display }}</div>
+            <div style="font-size:0.75rem;color:var(--cs-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              {{ event.user.username }} — {{ event.ip_address }}
+            </div>
+            <div style="font-size:0.7rem;color:var(--cs-muted)">{{ event.detected_at|timesince }} ago</div>
+          </div>
+          <span class="badge ms-auto badge-risk-{% if event.risk_score >= 0.7 %}high{% elif event.risk_score >= 0.4 %}medium{% else %}low{% endif %}" style="flex-shrink:0;align-self:flex-start">{{ event.risk_score|floatformat:2 }}</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="text-center py-4" style="color:var(--cs-muted)">
+          <i class="fas fa-shield-check fa-2x mb-2" style="color:var(--cs-success)"></i>
+          <div style="font-size:0.85rem">No unresolved security events!</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Pending Approvals -->
+  <div class="col-xl-4">
+    <div class="cs-card h-100">
+      <div class="cs-card-header">
+        <span class="cs-card-title"><i class="fas fa-user-clock me-1" style="color:var(--cs-warning)"></i>Pending Approvals</span>
+        {% if pending_users %}<span class="badge badge-risk-medium">{{ pending_users }}</span>{% endif %}
+      </div>
+      {% if pending_approvals %}
+        {% for u in pending_approvals %}
+        <div class="d-flex align-items-center justify-content-between py-2 border-bottom" style="border-color:var(--cs-border)!important">
+          <div>
+            <div style="font-size:0.85rem;font-weight:600">{{ u.username }}</div>
+            <div style="font-size:0.73rem;color:var(--cs-muted)">{{ u.email }}</div>
+            <div style="font-size:0.7rem;color:var(--cs-muted)">Joined {{ u.created_at|timesince }} ago</div>
+          </div>
+          <form method="post" action="{% url 'dashboard:approve_user' u.id %}" class="m-0">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm" style="background:rgba(16,185,129,0.1);color:#34d399;border:1px solid rgba(16,185,129,0.2);font-size:0.75rem">
+              <i class="fas fa-check me-1"></i>Approve
+            </button>
+          </form>
+        </div>
+        {% empty %}
+        {% endfor %}
+      {% else %}
+        <div class="text-center py-4" style="color:var(--cs-muted)">
+          <i class="fas fa-user-check fa-2x mb-2" style="color:var(--cs-success)"></i>
+          <div style="font-size:0.85rem">No pending approvals</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Recent Audit Logs ════════════════════════════════════════════════ -->
+<div class="cs-card">
+  <div class="cs-card-header">
+    <span class="cs-card-title"><i class="fas fa-list-check me-1" style="color:var(--cs-accent)"></i>Recent Audit Activity</span>
+    <a href="{% url 'audit:logs' %}" class="btn-cs-outline py-1 px-2" style="font-size:0.75rem">View All Logs</a>
+  </div>
+  <table class="cs-table">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>User</th>
+        <th>Action</th>
+        <th>Severity</th>
+        <th>IP Address</th>
+        <th>Details</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in recent_logs %}
+      <tr>
+        <td class="mono" style="font-size:0.8rem;color:var(--cs-muted)">{{ log.timestamp|date:"d/m H:i" }}</td>
+        <td style="font-weight:600;font-size:0.84rem">{{ log.user.username|default:"System" }}</td>
+        <td><span class="badge" style="background:rgba(0,212,255,0.08);color:var(--cs-accent);border:1px solid rgba(0,212,255,0.15);font-size:0.7rem">{{ log.get_action_display }}</span></td>
+        <td><span class="sev-{{ log.severity }}" style="font-size:0.8rem;font-weight:600">{{ log.get_severity_display }}</span></td>
+        <td class="mono" style="font-size:0.8rem;color:var(--cs-muted)">{{ log.ip_address|default:"N/A" }}</td>
+        <td style="font-size:0.8rem;color:var(--cs-muted-2);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ log.description }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="text-center py-3" style="color:var(--cs-muted)">No audit logs yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .threat-grid { display:flex; flex-direction:column; gap:0.5rem; }
+  .threat-stat-row {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0.6rem 0.75rem; border-radius:8px;
+    background:rgba(255,255,255,0.02); font-size:0.84rem;
+    transition:background 0.2s;
+  }
+  .threat-stat-row:hover { background:rgba(255,255,255,0.04); }
+</style>
+
+{% block extra_js %}
+<script>
+// ── Login Trend Chart ──────────────────────────────────────────────────────
+fetch("{% url 'dashboard:stats_api' %}")
+  .then(r => r.json())
+  .then(data => {
+    const labels = data.daily_logins.map(d => d.date.slice(5));
+    const totals = data.daily_logins.map(d => d.total);
+    const susp   = data.daily_logins.map(d => d.suspicious);
+
+    new Chart(document.getElementById('loginTrendChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Total Logins',
+            data: totals,
+            borderColor: 'rgba(0,212,255,0.8)',
+            backgroundColor: 'rgba(0,212,255,0.08)',
+            tension: 0.4, fill: true, pointRadius: 4,
+            pointBackgroundColor: 'rgba(0,212,255,0.8)',
+          },
+          {
+            label: 'Suspicious',
+            data: susp,
+            borderColor: 'rgba(239,68,68,0.8)',
+            backgroundColor: 'rgba(239,68,68,0.05)',
+            tension: 0.4, fill: true, pointRadius: 4,
+            pointBackgroundColor: 'rgba(239,68,68,0.8)',
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top' } },
+        scales: {
+          x: { grid: { color: 'rgba(255,255,255,0.04)' } },
+          y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }
+        }
+      }
+    });
+  });
+
+// ── Encryption Donut ────────────────────────────────────────────────────────
+const encData = {
+  'AES-128': {{ enc_dist.aes128 }},
+  'AES-192': {{ enc_dist.aes192 }},
+  'AES-256': {{ enc_dist.aes256 }},
+};
+new Chart(document.getElementById('encDonutChart'), {
+  type: 'doughnut',
+  data: {
+    labels: Object.keys(encData),
+    datasets: [{
+      data: Object.values(encData),
+      backgroundColor: [
+        'rgba(245,158,11,0.7)',
+        'rgba(0,212,255,0.7)',
+        'rgba(16,185,129,0.7)',
+      ],
+      borderWidth: 0, hoverOffset: 4
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, cutout: '65%',
+    plugins: { legend: { display: false } }
+  }
+});
+
+// ── Risk Bar Chart ───────────────────────────────────────────────────────────
+new Chart(document.getElementById('riskBarChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Low Risk', 'Medium Risk', 'High Risk'],
+    datasets: [{
+      label: 'Logins by Risk Level',
+      data: [{{ risk_dist.low }}, {{ risk_dist.medium }}, {{ risk_dist.high }}],
+      backgroundColor: [
+        'rgba(16,185,129,0.6)',
+        'rgba(245,158,11,0.6)',
+        'rgba(239,68,68,0.6)',
+      ],
+      borderRadius: 6, borderWidth: 0,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false } },
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }
+    }
+  }
+});
+</script>
+{% endblock %}
+{% endblock %}

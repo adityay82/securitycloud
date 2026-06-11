@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}My Profile{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="cs-card text-center">
+      <div style="width:90px;height:90px;background:linear-gradient(135deg,#00d4ff,#7c3aed);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;margin:0 auto 1rem;">
+        {% if user.profile_picture %}
+        <img src="{{ user.profile_picture.url }}" style="width:90px;height:90px;border-radius:50%;object-fit:cover;">
+        {% else %}{{ user.username|first|upper }}{% endif %}
+      </div>
+      <h5 class="fw-bold">{{ user.get_full_name|default:user.username }}</h5>
+      <p style="color:#94a3b8;font-size:.85rem;">{{ user.email }}</p>
+      <span class="badge" style="background:rgba(0,212,255,.15);color:#00d4ff;border:1px solid rgba(0,212,255,.3);">{{ user.role|upper }}</span>
+      <span class="badge ms-1" style="background:{% if user.status == 'active' %}rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3){% else %}rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3){% endif %};">{{ user.status|upper }}</span>
+      <hr style="border-color:rgba(255,255,255,.07);">
+      <div class="text-start">
+        <div class="mb-2"><small style="color:#94a3b8;">Member Since</small><div style="font-size:.85rem;">{{ user.created_at|date:"M d, Y" }}</div></div>
+        <div class="mb-2"><small style="color:#94a3b8;">Email Verified</small><div style="font-size:.85rem;">{% if user.email_verified %}<span style="color:#34d399;"><i class="fas fa-check-circle me-1"></i>Verified</span>{% else %}<span style="color:#f87171;"><i class="fas fa-times-circle me-1"></i>Not Verified</span>{% endif %}</div></div>
+        <div><small style="color:#94a3b8;">2FA Status</small><div style="font-size:.85rem;"><span style="color:#34d399;"><i class="fas fa-shield-check me-1"></i>Enabled</span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="cs-card">
+      <div class="cs-card-header"><span class="cs-card-title"><i class="fas fa-user-edit me-2" style="color:#00d4ff;"></i>Edit Profile</span></div>
+      {% if messages %}{% for msg in messages %}<div class="alert alert-{{ msg.tags }} py-2">{{ msg }}</div>{% endfor %}{% endif %}
+      <form method="post" enctype="multipart/form-data" class="cs-form">
+        {% csrf_token %}
+        <div class="row g-3">
+          <div class="col-6"><label>First Name</label>{{ form.first_name }}</div>
+          <div class="col-6"><label>Last Name</label>{{ form.last_name }}</div>
+          <div class="col-12"><label>Email Address</label>{{ form.email }}</div>
+          <div class="col-12"><label>Phone Number</label>{{ form.phone }}</div>
+          <div class="col-12"><label>Profile Picture</label>{{ form.profile_picture }}</div>
+        </div>
+        <button type="submit" class="btn btn-cs-primary mt-3 px-4"><i class="fas fa-save me-2"></i>Save Changes</button>
+      </form>
+    </div>
+
+    <div class="cs-card mt-3">
+      <div class="cs-card-header"><span class="cs-card-title"><i class="fas fa-history me-2" style="color:#a78bfa;"></i>Recent Activity</span></div>
+      {% for log in user.audit_logs.all|slice:":5" %}
+      <div class="d-flex align-items-start gap-3 mb-2 pb-2" style="border-bottom:1px solid rgba(255,255,255,.04);">
+        <div style="width:32px;height:32px;background:rgba(0,212,255,.1);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-circle-dot" style="font-size:.6rem;color:#00d4ff;"></i></div>
+        <div><div style="font-size:.85rem;">{{ log.action|title }}</div><div style="font-size:.75rem;color:#94a3b8;">{{ log.timestamp|timesince }} ago</div></div>
+        <span class="ms-auto badge sev-{{ log.severity }}" style="font-size:.7rem;">{{ log.severity }}</span>
+      </div>
+      {% empty %}<p style="color:#94a3b8;font-size:.85rem;">No activity yet.</p>{% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

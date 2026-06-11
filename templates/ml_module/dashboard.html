@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% block title %}ML Security Analytics{% endblock %}
+{% block page_title %}<i class="fas fa-brain me-2" style="color:#a78bfa"></i>ML Security Analytics{% endblock %}
+
+{% block content %}
+<!-- ═══ Model Comparison Cards ════════════════════════════════════════════ -->
+<div class="row g-3 mb-4">
+  {% with models_data=metrics %}
+  {% for model_key, model_name in models_display.items %}
+  {% with m=metrics|default_if_none:"" %}
+  <!-- dynamically rendered below via JS -->
+  {% endwith %}
+  {% endfor %}
+  {% endwith %}
+</div>
+
+<!-- Model metrics rendered dynamically by JS after API call -->
+<div id="model-cards-container" class="row g-3 mb-4">
+  <div class="col-12 text-center py-4" id="metrics-loading">
+    <div class="spinner-border text-info"></div>
+    <div class="mt-2" style="color:var(--cs-muted)">Loading model metrics...</div>
+  </div>
+</div>
+
+<!-- ═══ Confusion Matrices + Feature Importance ══════════════════════════ -->
+<div class="row g-3 mb-4">
+  <div class="col-xl-6">
+    <div class="cs-card h-100">
+      <div class="cs-card-header">
+        <span class="cs-card-title"><i class="fas fa-grid-2 me-1" style="color:var(--cs-accent)"></i>Confusion Matrix — Random Forest</span>
+        <span class="badge" style="background:rgba(0,212,255,0.1);color:var(--cs-accent);border:1px solid rgba(0,212,255,0.2)">Primary Model</span>
+      </div>
+      <div id="confusion-matrix-rf" class="confusion-matrix-wrapper text-center py-3">
+        <div class="spinner-border text-info"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="cs-card h-100">
+      <div class="cs-card-header">
+        <span class="cs-card-title"><i class="fas fa-chart-bar me-1" style="color:#a78bfa"></i>Feature Importance (Random Forest)</span>
+      </div>
+      <canvas id="featureImportanceChart" height="220"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Risk Distribution + Recent Predictions ═══════════════════════════ -->
+<div class="row g-3 mb-4">
+  <div class="col-xl-4">
+    <div class="cs-card h-100">
+      <div class="cs-card-header">
+        <span class="cs-card-title"><i class="fas fa-circle-nodes me-1" style="color:var(--cs-warning)"></i>Risk Distribution</span>
+      </div>
+      <canvas id="riskDistChart" height="220"></canvas>
+      <div class="d-flex justify-content-around mt-3">
+        <div class="text-center">
+          <div style="font-size:1.4rem;font-weight:800;color:#34d399">{{ risk_stats.low }}</div>
+          <div style="font-size:0.75rem;color:var(--cs-muted)">Low Risk</div>
+        </div>
+        <div class="text-center">
+          <div style="font-size:1.4rem;font-weight:800;color:#fbbf24">{{ risk_stats.medium }}</div>
+          <div style="font-size:0.75rem;color:var(--cs-muted)">Medium Risk</div>
+        </div>
+        <div class="text-center">
+          <div style="font-size:1.4rem;font-weight:800;color:#f87171">{{ risk_stats.high }}</div>
+          <div style="font-size:0.75rem;color:var(--cs-muted)">High Risk</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="cs-card h-100">
+      <div class="cs-card-header">
+        <span class="cs-card-title"><i class="fas fa-table me-1" style="color:var(--cs-accent)"></i>Model Performance Comparison</span>
+        {% if user.role == 'admin' %}
+        <button class="btn-cs py-1 px-3" id="retrain-btn" onclick="retrainModels()" style="font-size:0.8rem">
+          <i class="fas fa-refresh me-1"></i>Retrain Models
+        </button>
+        {% endif %}
+      </div>
+      <table class="cs-table" id="model-comparison-table">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Accuracy</th>
+            <th>Precision</th>
+            <th>Recall</th>
+            <th>F1 Score</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="model-table-body">
+          <tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm text-info"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Recent Predictions ════════════════════════════════════════════════ -->
+<div class="cs-card">
+  <div class="cs-card-header">
+    <span class="cs-card-title"><i class="fas fa-clock-rotate-left me-1" style="color:var(--cs-muted-2)"></i>Recent Risk Predictions</span>
+  </div>
+  <table class="cs-table">
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Risk Score</th>
+        <th>Risk Level</th>
+        <th>Suspicious</th>
+        <th>Login Time</th>
+        <th>IP Address</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in predictions %}
+      <tr>
+        <td style="font-weight:600;font-size:0.84rem">{{ p.user.username }}</td>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <div class="risk-bar" style="width:80px">
+              <div class="risk-bar-fill" style="width:{{ p.risk_score|floatformat:0 }}%;background:{% if p.risk_score >= 70 %}var(--cs-danger){% elif p.risk_score >= 40 %}var(--cs-warning){% else %}var(--cs-success){% endif %}"></div>
+            </div>
+            <span class="mono" style="font-size:0.82rem">{{ p.risk_score|floatformat:3 }}</span>
+          </div>
+        </td>
+        <td><span class="badge badge-risk-{{ p.risk_level }} px-2">{{ p.risk_level|title }}</span></td>
+        <td>
+          {% if p.is_suspicious %}
+          <span style="color:var(--cs-danger)"><i class="fas fa-triangle-exclamation"></i> Yes</span>
+          {% else %}
+          <span style="color:var(--cs-success)"><i class="fas fa-check-circle"></i> No</span>
+          {% endif %}
+        </td>
+        <td style="font-size:0.8rem;color:var(--cs-muted)">{{ p.login_time|date:"d/m H:i" }}</td>
+        <td class="mono" style="font-size:0.8rem;color:var(--cs-muted)">{{ p.ip_address|default:"N/A" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="text-center py-3" style="color:var(--cs-muted)">No predictions yet. Predictions are generated on each login.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<style>
+.confusion-matrix {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 4px; max-width: 280px; margin: 0 auto;
+}
+.cm-cell {
+  padding: 1rem; border-radius: 8px; text-align: center;
+  font-size: 1.5rem; font-weight: 800;
+}
+.cm-cell small { display:block; font-size:0.65rem; font-weight:500; margin-top:0.25rem; color:rgba(255,255,255,0.7); }
+.cm-tp { background: rgba(16,185,129,0.25); color: #34d399; }
+.cm-tn { background: rgba(0,212,255,0.15); color: var(--cs-accent); }
+.cm-fp { background: rgba(245,158,11,0.15); color: #fbbf24; }
+.cm-fn { background: rgba(239,68,68,0.2); color: #f87171; }
+.cm-label { font-size:0.7rem; color:var(--cs-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:0.5rem; }
+</style>
+
+{% block extra_js %}
+<script>
+fetch("{% url 'ml_module:metrics_api' %}")
+  .then(r => r.json())
+  .then(data => {
+    document.getElementById('metrics-loading')?.remove();
+
+    const modelLabels = {
+      'random_forest': { name: 'Random Forest', color: '#00d4ff', icon: 'fas fa-tree' },
+      'logistic_regression': { name: 'Logistic Regression', color: '#a78bfa', icon: 'fas fa-chart-line' },
+      'xgboost': { name: 'XGBoost', color: '#fbbf24', icon: 'fas fa-bolt' },
+      'isolation_forest': { name: 'Isolation Forest', color: '#34d399', icon: 'fas fa-shield-virus' },
+    };
+
+    let cardHtml = '';
+    let tableRows = '';
+    let bestModel = null, bestF1 = -1;
+
+    for (const [key, meta] of Object.entries(modelLabels)) {
+      const m = data[key];
+      if (!m) continue;
+      const f1 = m.f1_score || 0;
+      if (f1 > bestF1) { bestF1 = f1; bestModel = key; }
+
+      const acc = m.accuracy || 0;
+      const barColor = acc >= 90 ? '#34d399' : acc >= 75 ? '#fbbf24' : '#f87171';
+
+      cardHtml += `
+        <div class="col-xl-3 col-md-6">
+          <div class="cs-card text-center fade-up">
+            <div style="font-size:1.75rem;margin-bottom:0.5rem"><i class="${meta.icon}" style="color:${meta.color}"></i></div>
+            <div style="font-size:0.8rem;font-weight:700;color:var(--cs-muted-2);text-transform:uppercase;letter-spacing:1px">${meta.name}</div>
+            <div style="font-size:2.5rem;font-weight:900;color:${barColor};line-height:1.1;margin:0.5rem 0">${acc}%</div>
+            <div style="font-size:0.7rem;color:var(--cs-muted)">Accuracy</div>
+            <div class="risk-bar mt-2"><div class="risk-bar-fill" style="width:${acc}%;background:${barColor}"></div></div>
+            <div class="d-flex justify-content-around mt-3">
+              <div><div style="font-size:0.95rem;font-weight:700">${m.precision||0}%</div><div style="font-size:0.65rem;color:var(--cs-muted)">Precision</div></div>
+              <div><div style="font-size:0.95rem;font-weight:700">${m.recall||0}%</div><div style="font-size:0.65rem;color:var(--cs-muted)">Recall</div></div>
+              <div><div style="font-size:0.95rem;font-weight:700">${f1}%</div><div style="font-size:0.65rem;color:var(--cs-muted)">F1 Score</div></div>
+            </div>
+          </div>
+        </div>`;
+
+      const isBest = key === bestModel;
+      tableRows += `
+        <tr>
+          <td style="font-weight:600"><i class="${meta.icon}" style="color:${meta.color};margin-right:6px"></i>${meta.name}</td>
+          <td><span style="color:${barColor};font-weight:700">${acc}%</span></td>
+          <td>${m.precision||0}%</td>
+          <td>${m.recall||0}%</td>
+          <td>${f1}%</td>
+          <td>${isBest ? '<span class="badge badge-risk-low">Best</span>' : '<span style="color:var(--cs-muted);font-size:0.8rem">—</span>'}</td>
+        </tr>`;
+    }
+
+    document.getElementById('model-cards-container').innerHTML = cardHtml;
+    document.getElementById('model-table-body').innerHTML = tableRows;
+
+    // Confusion matrix for RF
+    const rf = data.random_forest;
+    if (rf && rf.confusion_matrix) {
+      const cm = rf.confusion_matrix;
+      const tn = cm[0][0], fp = cm[0][1], fn = cm[1][0], tp = cm[1][1];
+      document.getElementById('confusion-matrix-rf').innerHTML = `
+        <div class="cm-label">Predicted →</div>
+        <div class="confusion-matrix">
+          <div class="cm-cell cm-tn">${tn}<small>True Negative</small></div>
+          <div class="cm-cell cm-fp">${fp}<small>False Positive</small></div>
+          <div class="cm-cell cm-fn">${fn}<small>False Negative</small></div>
+          <div class="cm-cell cm-tp">${tp}<small>True Positive</small></div>
+        </div>
+        <div class="mt-2" style="font-size:0.72rem;color:var(--cs-muted)">Rows: Actual | Columns: Predicted</div>`;
+    }
+
+    // Feature importance chart
+    const fi = data.random_forest?.feature_importance;
+    if (fi) {
+      const labels = Object.keys(fi).map(k => k.replace('_', ' ').replace('numeric', ''));
+      const values = Object.values(fi);
+      new Chart(document.getElementById('featureImportanceChart'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: [
+              'rgba(0,212,255,0.6)', 'rgba(124,58,237,0.6)', 'rgba(16,185,129,0.6)',
+              'rgba(245,158,11,0.6)', 'rgba(239,68,68,0.6)', 'rgba(167,139,250,0.6)',
+              'rgba(96,165,250,0.6)'
+            ],
+            borderRadius: 6, borderWidth: 0,
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.04)' } },
+            y: { grid: { display: false } }
+          }
+        }
+      });
+    }
+  })
+  .catch(err => {
+    document.getElementById('metrics-loading').innerHTML = '<div style="color:var(--cs-danger)">Failed to load metrics. <a href="javascript:location.reload()" class="auth-link">Retry</a></div>';
+  });
+
+// Risk distribution doughnut
+new Chart(document.getElementById('riskDistChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Low Risk', 'Medium Risk', 'High Risk'],
+    datasets: [{
+      data: [{{ risk_stats.low }}, {{ risk_stats.medium }}, {{ risk_stats.high }}],
+      backgroundColor: ['rgba(16,185,129,0.7)', 'rgba(245,158,11,0.7)', 'rgba(239,68,68,0.7)'],
+      borderWidth: 0, hoverOffset: 6
+    }]
+  },
+  options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom' } } }
+});
+
+function retrainModels() {
+  const btn = document.getElementById('retrain-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Retraining...';
+  fetch("{% url 'ml_module:retrain_api' %}", { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'} })
+    .then(r => r.json())
+    .then(d => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check me-1"></i>Done! Reload page';
+      btn.onclick = () => location.reload();
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-refresh me-1"></i>Retrain Models';
+    });
+}
+</script>
+{% endblock %}
+{% endblock %}

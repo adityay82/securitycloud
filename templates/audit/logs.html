@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block title %}Audit Logs{% endblock %}
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-lg-8">
+    <div class="cs-card">
+      <div class="cs-card-header">
+        <span class="cs-card-title"><i class="fas fa-list-check me-2" style="color:#00d4ff;"></i>Security Audit Logs</span>
+        <div class="d-flex gap-2">
+          <select id="severity-filter" class="form-select form-select-sm" style="width:120px;background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.07);color:#e2e8f0;">
+            <option value="">All Severity</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
+          <input type="text" id="log-search" placeholder="Search…" class="form-control form-control-sm" style="width:160px;background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.07);color:#e2e8f0;">
+          <a href="{% url 'audit:export_csv' %}" class="btn btn-cs-outline btn-sm" title="Export to CSV">
+            <i class="fas fa-download me-1"></i>Export CSV
+          </a>
+        </div>
+      </div>
+      <div class="table-responsive" style="max-height:600px;overflow-y:auto;">
+        <table class="cs-table" id="logs-table">
+          <thead style="position:sticky;top:0;background:var(--cs-card);z-index:1;">
+            <tr><th>Timestamp</th><th>User</th><th>Action</th><th>IP Address</th><th>Severity</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+          {% for log in logs %}
+          <tr class="log-row" data-severity="{{ log.severity }}">
+            <td style="font-size:.78rem;color:#94a3b8;white-space:nowrap;font-family:'JetBrains Mono',monospace;">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+            <td style="font-size:.85rem;">{{ log.user.username|default:"System" }}</td>
+            <td>
+              <span style="font-size:.8rem;padding:2px 8px;border-radius:4px;
+              {% if 'login' in log.action %}background:rgba(0,212,255,.1);color:#00d4ff;
+              {% elif 'encrypt' in log.action or 'decrypt' in log.action %}background:rgba(16,185,129,.1);color:#34d399;
+              {% elif 'suspicious' in log.action %}background:rgba(239,68,68,.1);color:#f87171;
+              {% else %}background:rgba(255,255,255,.05);color:#94a3b8;{% endif %}">
+                {{ log.action|title }}
+              </span>
+            </td>
+            <td style="font-family:'JetBrains Mono',monospace;font-size:.8rem;color:#94a3b8;">{{ log.ip_address|default:"—" }}</td>
+            <td>
+              <span class="sev-{{ log.severity }}" style="font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">
+                {% if log.severity == 'critical' %}<i class="fas fa-circle-exclamation me-1"></i>
+                {% elif log.severity == 'high' %}<i class="fas fa-triangle-exclamation me-1"></i>
+                {% elif log.severity == 'medium' %}<i class="fas fa-circle-minus me-1"></i>
+                {% else %}<i class="fas fa-circle-check me-1"></i>{% endif %}
+                {{ log.severity }}
+              </span>
+            </td>
+            <td style="font-size:.8rem;color:#94a3b8;max-width:200px;" class="text-truncate">{{ log.description }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center py-4" style="color:#94a3b8;">No audit logs found.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="cs-card mb-3">
+      <div class="cs-card-header"><span class="cs-card-title"><i class="fas fa-chart-bar me-2" style="color:#a78bfa;"></i>Activity (7 Days)</span></div>
+      <canvas id="activityChart" height="160"></canvas>
+    </div>
+    <div class="cs-card">
+      <div class="cs-card-header"><span class="cs-card-title"><i class="fas fa-chart-pie me-2" style="color:#fbbf24;"></i>Severity Breakdown</span></div>
+      <canvas id="severityChart" height="160"></canvas>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+// Severity filter
+document.getElementById('severity-filter').addEventListener('change', function() {
+  const val = this.value;
+  document.querySelectorAll('.log-row').forEach(row => {
+    row.style.display = (!val || row.dataset.severity === val) ? '' : 'none';
+  });
+});
+// Text search
+document.getElementById('log-search').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('.log-row').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+
+// Fetch audit stats
+fetch('{% url "audit:stats_api" %}')
+.then(r=>r.json())
+.then(d=>{
+  // Activity chart
+  new Chart(document.getElementById('activityChart'), {
+    type: 'bar',
+    data: {
+      labels: d.daily_activity.map(x => x.date.slice(5)),
+      datasets: [{ label: 'Events', data: d.daily_activity.map(x => x.count), backgroundColor: 'rgba(0,212,255,.6)', borderRadius: 4 }]
+    },
+    options: { responsive:true, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.05)'}}, x:{grid:{display:false}} } }
+  });
+  // Severity doughnut
+  const sv = d.severity_distribution;
+  new Chart(document.getElementById('severityChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Low','Medium','High','Critical'],
+      datasets: [{ data: [sv.low,sv.medium,sv.high,sv.critical], backgroundColor:['#10b981','#f59e0b','#ef4444','#a78bfa'], borderWidth:0 }]
+    },
+    options: { responsive:true, cutout:'60%', plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:8}}} }
+  });
+});
+</script>
+{% endblock %}
