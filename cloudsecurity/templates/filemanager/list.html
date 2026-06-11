@@ -1,0 +1,385 @@
+{% extends 'base.html' %}
+{% block title %}Secure File Manager{% endblock %}
+{% block page_title %}<i class="fas fa-folder-lock me-2" style="color:#a78bfa"></i>Secure File Manager{% endblock %}
+
+{% block content %}
+<!-- ═══ Stats Row ═════════════════════════════════════════════════════════ -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">
+    <div class="stat-card stat-blue">
+      <div class="stat-icon"><i class="fas fa-files"></i></div>
+      <div class="stat-value">{{ total }}</div>
+      <div class="stat-label">Total Files</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat-card stat-green">
+      <div class="stat-icon"><i class="fas fa-lock"></i></div>
+      <div class="stat-value">{{ encrypted }}</div>
+      <div class="stat-label">Encrypted</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat-card stat-purple">
+      <div class="stat-icon"><i class="fas fa-shield-halved"></i></div>
+      <div class="stat-value">{{ aes256 }}</div>
+      <div class="stat-label">AES-256</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat-card stat-amber">
+      <div class="stat-icon"><i class="fas fa-database"></i></div>
+      <div class="stat-value">{{ total_size_mb }}</div>
+      <div class="stat-label">Total MB</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Upload Zone ═══════════════════════════════════════════════════════ -->
+<div class="cs-card mb-4">
+  <div class="cs-card-header">
+    <span class="cs-card-title"><i class="fas fa-upload me-2" style="color:var(--cs-accent)"></i>Encrypt & Upload File</span>
+    <span style="font-size:.75rem;color:var(--cs-muted)">
+      <i class="fas fa-info-circle me-1"></i>Max 50MB · Adaptive encryption auto-selected by size & risk
+    </span>
+  </div>
+  <form method="post" action="{% url 'encryption:upload' %}" enctype="multipart/form-data" id="upload-form">
+    {% csrf_token %}
+
+    <!-- Drag-drop zone -->
+    <div class="drop-zone mb-3" id="drop-zone" onclick="document.getElementById('upload-input').click()">
+      <div class="drop-zone-inner" id="drop-inner">
+        <div class="drop-icon">📂</div>
+        <div class="drop-title">Drag & drop file here</div>
+        <div class="drop-sub">or click to browse · PDF, DOC, XLS, Images, ZIP supported</div>
+      </div>
+      <input type="file" name="file" id="upload-input" class="d-none" required onchange="handleFileSelect(this)">
+    </div>
+
+    <!-- Encryption info bar -->
+    <div id="upload-info" class="d-none mb-3">
+      <div class="upload-info-card">
+        <div class="d-flex align-items-center gap-3">
+          <div id="file-icon" style="font-size:2rem">📄</div>
+          <div class="flex-grow-1">
+            <div id="file-name" style="font-weight:600;font-size:0.9rem"></div>
+            <div id="file-meta" style="font-size:0.75rem;color:var(--cs-muted-2)"></div>
+            <div class="d-flex align-items-center gap-2 mt-1">
+              <div class="risk-bar" style="width:120px">
+                <div id="enc-strength-bar" class="risk-bar-fill"></div>
+              </div>
+              <span id="enc-type-badge" class="badge"></span>
+            </div>
+          </div>
+          <button type="button" onclick="clearFile()" class="btn btn-sm" style="background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2)">
+            <i class="fas fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sensitivity + Upload row -->
+    <div class="d-flex gap-3 align-items-end flex-wrap">
+      <div>
+        <label class="cs-form d-block mb-1" style="font-size:0.7rem;color:var(--cs-muted-2);text-transform:uppercase;letter-spacing:0.7px">Sensitivity Level</label>
+        <select name="sensitivity" class="form-select form-select-sm"
+          style="background:rgba(255,255,255,0.04);border:1px solid var(--cs-border);color:var(--cs-text);border-radius:8px;width:auto">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+          <option value="critical">Critical (Force AES-256)</option>
+        </select>
+      </div>
+      <button type="submit" class="btn-cs px-4 py-2" id="upload-btn" disabled>
+        <i class="fas fa-lock me-2"></i>Encrypt & Upload
+      </button>
+      <div id="upload-progress" class="d-none flex-grow-1">
+        <div style="font-size:0.75rem;color:var(--cs-muted);margin-bottom:4px">Encrypting...</div>
+        <div class="risk-bar" style="height:8px">
+          <div class="risk-bar-fill" style="width:0%;background:var(--cs-accent)" id="progress-bar"></div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- ═══ Files Table ════════════════════════════════════════════════════════ -->
+<div class="cs-card">
+  <div class="cs-card-header">
+    <span class="cs-card-title"><i class="fas fa-folder-open me-1" style="color:#a78bfa"></i>
+      {% if is_admin %}All Encrypted Files{% else %}My Encrypted Files{% endif %}
+    </span>
+    <div class="d-flex gap-2 align-items-center">
+      <input type="text" id="file-search" placeholder="Search files..."
+        class="form-control form-control-sm"
+        style="width:180px;background:rgba(255,255,255,0.04);border:1px solid var(--cs-border);color:var(--cs-text);border-radius:8px">
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="cs-table" id="files-table">
+      <thead>
+        <tr>
+          <th>File</th>
+          {% if is_admin %}<th>Owner</th>{% endif %}
+          <th>Size</th>
+          <th>Encryption</th>
+          <th>Sensitivity</th>
+          <th>Enc. Time</th>
+          <th>Integrity</th>
+          <th>Uploaded</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for file in files %}
+        <tr>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div class="file-icon-badge">
+                <i class="fas fa-{% if 'pdf' in file.original_filename|lower %}file-pdf{% elif 'doc' in file.original_filename|lower %}file-word{% elif 'xls' in file.original_filename|lower %}file-excel{% elif 'jpg' in file.original_filename|lower or 'png' in file.original_filename|lower or 'gif' in file.original_filename|lower %}file-image{% elif 'zip' in file.original_filename|lower %}file-zipper{% elif 'json' in file.original_filename|lower or 'txt' in file.original_filename|lower %}file-code{% else %}file{% endif %}"></i>
+              </div>
+              <div>
+                <div style="font-size:0.875rem;font-weight:600">{{ file.original_filename|truncatechars:32 }}</div>
+                <div class="mono" style="font-size:0.68rem;color:var(--cs-muted)">{{ file.id|stringformat:"s"|truncatechars:14 }}…</div>
+              </div>
+            </div>
+          </td>
+          {% if is_admin %}
+          <td style="font-size:0.84rem;color:var(--cs-muted-2)">{{ file.user.username }}</td>
+          {% endif %}
+          <td style="font-size:0.84rem">{{ file.get_size_display }}</td>
+          <td>
+            <div class="d-flex flex-column gap-1">
+              <span class="badge enc-badge-{{ file.encryption_type|slice:"4:" }}">{{ file.encryption_type }}</span>
+              <div class="risk-bar" style="width:60px">
+                <div class="risk-bar-fill" style="width:{{ file.get_strength_percent }}%;background:{% if file.encryption_type == 'AES-256' %}var(--cs-success){% elif file.encryption_type == 'AES-192' %}var(--cs-accent){% else %}var(--cs-warning){% endif %}"></div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="badge" style="
+              {% if file.sensitivity_level == 'critical' %}background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2)
+              {% elif file.sensitivity_level == 'high' %}background:rgba(245,158,11,0.1);color:#fbbf24;border:1px solid rgba(245,158,11,0.2)
+              {% elif file.sensitivity_level == 'medium' %}background:rgba(0,212,255,0.1);color:var(--cs-accent);border:1px solid rgba(0,212,255,0.2)
+              {% else %}background:rgba(16,185,129,0.1);color:#34d399;border:1px solid rgba(16,185,129,0.2){% endif %}
+            ">{{ file.sensitivity_level|title }}</span>
+          </td>
+          <td class="mono" style="font-size:0.8rem;color:var(--cs-muted)">
+            {% if file.encryption_time %}{{ file.encryption_time|floatformat:1 }}ms{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if file.file_hash %}
+            <span class="badge" style="background:rgba(16,185,129,0.08);color:#34d399;border:1px solid rgba(16,185,129,0.2);font-size:0.68rem">
+              <i class="fas fa-check me-1"></i>SHA-256
+            </span>
+            {% else %}
+            <span style="color:var(--cs-muted);font-size:0.8rem">—</span>
+            {% endif %}
+          </td>
+          <td style="font-size:0.8rem;color:var(--cs-muted)">{{ file.uploaded_at|date:"d M, Y" }}</td>
+          <td>
+            <div class="d-flex gap-1 flex-nowrap">
+              <a href="{% url 'encryption:download' file.id %}" class="icon-btn btn-icon-blue" title="Download Encrypted">
+                <i class="fas fa-download"></i>
+              </a>
+              <a href="{% url 'encryption:decrypt' file.id %}" class="icon-btn btn-icon-purple" title="Decrypt & Download">
+                <i class="fas fa-unlock"></i>
+              </a>
+              <button onclick="verifyIntegrity('{{ file.id }}')" class="icon-btn btn-icon-green" title="Verify SHA-256 Integrity">
+                <i class="fas fa-shield-check"></i>
+              </button>
+              <form method="post" action="{% url 'filemanager:delete' file.id %}" class="d-inline m-0" onsubmit="return confirm('Delete {{ file.original_filename }}? This cannot be undone.')">
+                {% csrf_token %}
+                <button type="submit" class="icon-btn btn-icon-red" title="Delete">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="9" class="text-center py-5" style="color:var(--cs-muted)">
+            <i class="fas fa-folder-open fa-3x d-block mb-3" style="opacity:0.25"></i>
+            No files yet. Upload your first file above.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  /* Drop zone */
+  .drop-zone {
+    border: 2px dashed rgba(0,212,255,0.3);
+    border-radius: 14px; padding: 2.5rem 1rem;
+    text-align: center; cursor: pointer;
+    transition: all 0.25s ease; background: rgba(0,212,255,0.02);
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--cs-accent);
+    background: rgba(0,212,255,0.05);
+    box-shadow: 0 0 0 4px rgba(0,212,255,0.08);
+  }
+  .drop-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+  .drop-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.25rem; }
+  .drop-sub { font-size: 0.78rem; color: var(--cs-muted); }
+
+  /* Upload info card */
+  .upload-info-card {
+    background: rgba(0,212,255,0.04);
+    border: 1px solid rgba(0,212,255,0.15);
+    border-radius: 12px; padding: 1rem 1.25rem;
+  }
+
+  /* File icon badge */
+  .file-icon-badge {
+    width: 36px; height: 36px; border-radius: 9px;
+    background: rgba(124,58,237,0.12);
+    display: flex; align-items: center; justify-content: center;
+    color: #a78bfa; font-size: 0.9rem; flex-shrink: 0;
+  }
+
+  /* Icon buttons */
+  .icon-btn {
+    width: 32px; height: 32px; border-radius: 7px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.78rem; border: 1px solid;
+    transition: all 0.18s; cursor: pointer; text-decoration: none;
+    background: none;
+  }
+  .btn-icon-blue  { background: rgba(0,212,255,0.1); color: var(--cs-accent); border-color: rgba(0,212,255,0.25); }
+  .btn-icon-blue:hover  { background: rgba(0,212,255,0.2); color: var(--cs-accent); }
+  .btn-icon-purple { background: rgba(124,58,237,0.1); color: #a78bfa; border-color: rgba(124,58,237,0.25); }
+  .btn-icon-purple:hover { background: rgba(124,58,237,0.2); color: #a78bfa; }
+  .btn-icon-green { background: rgba(16,185,129,0.1); color: #34d399; border-color: rgba(16,185,129,0.25); }
+  .btn-icon-green:hover { background: rgba(16,185,129,0.2); color: #34d399; }
+  .btn-icon-red   { background: rgba(239,68,68,0.1);  color: #f87171; border-color: rgba(239,68,68,0.25); }
+  .btn-icon-red:hover   { background: rgba(239,68,68,0.2); color: #f87171; }
+</style>
+
+{% block extra_js %}
+<script>
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('upload-input');
+const uploadBtn = document.getElementById('upload-btn');
+
+// Drag & Drop events
+['dragenter', 'dragover'].forEach(ev => {
+  dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+});
+['dragleave', 'drop'].forEach(ev => {
+  dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('dragover'); });
+});
+dropZone.addEventListener('drop', e => {
+  const dt = e.dataTransfer;
+  if (dt.files.length) {
+    fileInput.files = dt.files;
+    handleFileSelect(fileInput);
+  }
+});
+
+function handleFileSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const mb = file.size / 1048576;
+  let encType, encColor, encPct;
+  if (mb < 1) { encType = 'AES-128'; encColor = '#fbbf24'; encPct = 50; }
+  else if (mb < 10) { encType = 'AES-192'; encColor = '#00d4ff'; encPct = 75; }
+  else { encType = 'AES-256'; encColor = '#34d399'; encPct = 100; }
+
+  // Show info card
+  document.getElementById('upload-info').classList.remove('d-none');
+  document.getElementById('file-name').textContent = file.name;
+  document.getElementById('file-meta').textContent = mb.toFixed(2) + ' MB · Will be encrypted with ' + encType;
+  document.getElementById('enc-strength-bar').style.width = encPct + '%';
+  document.getElementById('enc-strength-bar').style.background = encColor;
+  document.getElementById('enc-type-badge').textContent = encType;
+  document.getElementById('enc-type-badge').style.cssText = `background:${encColor}22;color:${encColor};border:1px solid ${encColor}44`;
+
+  // Update drop zone
+  document.getElementById('drop-inner').innerHTML =
+    `<div class="drop-icon">✅</div><div class="drop-title" style="color:${encColor}">${file.name}</div><div class="drop-sub">Click to change file</div>`;
+
+  uploadBtn.disabled = false;
+}
+
+function clearFile() {
+  fileInput.value = '';
+  uploadBtn.disabled = true;
+  document.getElementById('upload-info').classList.add('d-none');
+  document.getElementById('drop-inner').innerHTML = `
+    <div class="drop-icon">📂</div>
+    <div class="drop-title">Drag & drop file here</div>
+    <div class="drop-sub">or click to browse · PDF, DOC, XLS, Images, ZIP supported</div>`;
+}
+
+// Upload with progress simulation
+document.getElementById('upload-form').addEventListener('submit', function() {
+  const prog = document.getElementById('upload-progress');
+  const bar = document.getElementById('progress-bar');
+  prog.classList.remove('d-none');
+  uploadBtn.disabled = true;
+  uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Encrypting...';
+  let w = 0;
+  const iv = setInterval(() => {
+    w = Math.min(w + Math.random() * 15, 90);
+    bar.style.width = w + '%';
+    if (w >= 90) clearInterval(iv);
+  }, 200);
+});
+
+// File search
+document.getElementById('file-search').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#files-table tbody tr').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+
+// Integrity check
+function verifyIntegrity(fileId) {
+  const btn = event.currentTarget;
+  const origHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+  fetch('/encryption/verify/' + fileId + '/', {
+    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
+    const ok = data.integrity;
+    const color = ok ? '#10b981' : '#ef4444';
+    const icon = ok ? 'fa-shield-check' : 'fa-shield-xmark';
+    const toast = document.createElement('div');
+    toast.style.cssText = `position:fixed;bottom:24px;right:24px;background:rgba(5,8,16,.97);
+      border:1px solid ${color};padding:1rem 1.5rem;border-radius:14px;z-index:9999;
+      box-shadow:0 12px 40px rgba(0,0,0,.5);display:flex;align-items:center;gap:.875rem;
+      max-width:400px;animation:fadeUp 0.3s ease`;
+    toast.innerHTML = `
+      <i class="fas ${icon}" style="font-size:1.75rem;color:${color}"></i>
+      <div>
+        <div style="font-weight:700;font-size:.9rem;color:${color}">${data.message}</div>
+        <div style="font-size:.7rem;color:#94a3b8;margin-top:.3rem;font-family:'JetBrains Mono',monospace">
+          SHA-256: ${(data.hash||'').slice(0,28)}…
+        </div>
+        ${data.decryption_time_ms ? `<div style="font-size:.7rem;color:#64748b">Verified in ${data.decryption_time_ms.toFixed(1)}ms</div>` : ''}
+      </div>`;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.4s'; setTimeout(()=>toast.remove(),400); }, 6000);
+  })
+  .catch(err => {
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
+    alert('Verification failed: ' + err);
+  });
+}
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block title %}My Security Dashboard{% endblock %}
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="stat-card stat-blue">
+      <div class="stat-icon"><i class="fas fa-file"></i></div>
+      <div class="stat-value">{{ my_files }}</div>
+      <div class="stat-label">My Files</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card stat-green">
+      <div class="stat-icon"><i class="fas fa-lock"></i></div>
+      <div class="stat-value">{{ encrypted_files }}</div>
+      <div class="stat-label">Encrypted</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card stat-purple">
+      <div class="stat-icon"><i class="fas fa-shield-check"></i></div>
+      <div class="stat-value">3</div>
+      <div class="stat-label">MFA Levels</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card {% if last_suspicious %}stat-red{% else %}stat-green{% endif %}">
+      <div class="stat-icon"><i class="fas fa-{% if last_suspicious %}triangle-exclamation{% else %}check-circle{% endif %}"></i></div>
+      <div class="stat-value" style="font-size:1rem;">{% if last_suspicious %}Alert{% else %}Secure{% endif %}</div>
+      <div class="stat-label">Security Status</div>
+    </div>
+  </div>
+</div>
+
+{% if last_suspicious %}
+<div class="alert mb-4" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#f87171;">
+  <i class="fas fa-exclamation-triangle me-2"></i>
+  <strong>Security Alert:</strong> Suspicious login detected from {{ last_suspicious.ip_address }} on {{ last_suspicious.login_time|date:"M d, Y H:i" }}. Risk Level: <strong>{{ last_suspicious.risk_level|upper }}</strong>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <!-- Quick Upload -->
+    <div class="cs-card mb-3">
+      <div class="cs-card-header"><span class="cs-card-title"><i class="fas fa-upload me-2" style="color:#00d4ff;"></i>Upload & Encrypt File</span></div>
+      <form method="post" action="{% url 'encryption:upload' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="p-3" style="border:2px dashed rgba(0,212,255,.3);border-radius:10px;text-align:center;cursor:pointer;" onclick="document.getElementById('file-input').click()">
+          <i class="fas fa-cloud-upload-alt fa-2x mb-2" style="color:#00d4ff;"></i>
+          <div style="font-size:.875rem;">Drop file here or <span style="color:#00d4ff;">browse</span></div>
+          <div style="font-size:.75rem;color:#94a3b8;">Adaptive AES encryption applied automatically</div>
+        </div>
+        <input type="file" name="file" id="file-input" style="display:none;" onchange="showFileInfo(this)">
+        <div id="file-info" class="mt-2" style="display:none;font-size:.8rem;color:#34d399;"></div>
+        <button type="submit" class="btn btn-cs-primary mt-3 w-100"><i class="fas fa-lock me-2"></i>Upload & Encrypt</button>
+      </form>
+    </div>
+    <!-- Encryption info -->
+    <div class="cs-card">
+      <div class="cs-card-header"><span class="cs-card-title"><i class="fas fa-info-circle me-2" style="color:#a78bfa;"></i>Adaptive Encryption</span></div>
+      <div class="row g-2">
+
+        <div class="col-4 text-center p-2" style="border-right:1px solid rgba(255,255,255,.05);">
+          <div style="font-size:.9rem;font-weight:700;color:#00d4ff;">AES-128</div>
+          <div style="font-size:.7rem;color:#94a3b8;">Small files</div>
+          <div style="font-size:.7rem;color:#94a3b8;">&lt; 1MB</div>
+        </div>
+        <div class="col-4 text-center p-2" style="border-right:1px solid rgba(255,255,255,.05);">
+          <div style="font-size:.9rem;font-weight:700;color:#a78bfa;">AES-192</div>
+          <div style="font-size:.7rem;color:#94a3b8;">Medium files</div>
+          <div style="font-size:.7rem;color:#94a3b8;">1–10MB</div>
+        </div>
+        <div class="col-4 text-center p-2">
+          <div style="font-size:.9rem;font-weight:700;color:#34d399;">AES-256</div>
+          <div style="font-size:.7rem;color:#94a3b8;">Large files</div>
+          <div style="font-size:.7rem;color:#94a3b8;">&gt; 10MB</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <!-- Recent logins -->
+    <div class="cs-card mb-3">
+      <div class="cs-card-header"><span class="cs-card-title"><i class="fas fa-clock-rotate-left me-2" style="color:#fbbf24;"></i>Recent Logins</span></div>
+      {% for login in my_logins %}
+      <div class="d-flex align-items-center gap-3 mb-2 pb-2" style="border-bottom:1px solid rgba(255,255,255,.04);">
+        <div style="width:36px;height:36px;background:{% if login.is_suspicious %}rgba(239,68,68,.1){% else %}rgba(16,185,129,.1){% endif %};border-radius:8px;display:flex;align-items:center;justify-content:center;">
+          <i class="fas fa-{% if login.is_suspicious %}exclamation-triangle{% else %}check{% endif %}" style="color:{% if login.is_suspicious %}#f87171{% else %}#34d399{% endif %};font-size:.85rem;"></i>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:.8rem;">{{ login.browser }} on {{ login.device_type }}</div>
+          <div style="font-size:.75rem;color:#94a3b8;">{{ login.ip_address }} &bull; {{ login.login_time|timesince }} ago</div>
+        </div>
+        <span class="badge badge-risk-{{ login.risk_level }}" style="font-size:.65rem;">{{ login.risk_level|upper }}</span>
+      </div>
+      {% empty %}<p style="color:#94a3b8;font-size:.85rem;">No login history yet.</p>{% endfor %}
+    </div>
+    <!-- Activity log -->
+    <div class="cs-card">
+      <div class="cs-card-header"><span class="cs-card-title"><i class="fas fa-list me-2" style="color:#00d4ff;"></i>Activity Log</span>
+      <a href="{% url 'audit:logs' %}" style="font-size:.8rem;color:#00d4ff;">View all</a></div>
+      {% for log in my_logs %}
+      <div class="d-flex align-items-center gap-2 mb-1 pb-1" style="border-bottom:1px solid rgba(255,255,255,.04);">
+        <i class="fas fa-circle" style="font-size:.4rem;color:#94a3b8;flex-shrink:0;"></i>
+        <span style="font-size:.82rem;flex:1;">{{ log.action|title }}</span>
+        <span style="font-size:.75rem;color:#94a3b8;">{{ log.timestamp|timesince }} ago</span>
+      </div>
+      {% empty %}<p style="color:#94a3b8;font-size:.85rem;">No activity yet.</p>{% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function showFileInfo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const mb = (file.size/1048576).toFixed(2);
+  let enc = mb < 1 ? 'AES-128' : mb < 10 ? 'AES-192' : 'AES-256';
+  document.getElementById('file-info').style.display = 'block';
+  document.getElementById('file-info').innerHTML = '<i class="fas fa-file me-1"></i>' + file.name + ' (' + mb + ' MB) &rarr; Will use <strong>' + enc + '</strong>';
+}
+</script>
+{% endblock %}

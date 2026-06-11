@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Security Events{% endblock %}
+{% block page_title %}<i class="fas fa-shield-exclamation me-2" style="color:var(--cs-danger)"></i>Security Events & IDS Alerts{% endblock %}
+
+{% block content %}
+<!-- ═══ Summary Cards ════════════════════════════════════════════════════ -->
+<div class="row g-3 mb-4">
+  {% for event_type, label in event_type_counts.items %}
+  <div class="col-6 col-lg-3">
+    <div class="stat-card {% if event_type == 'brute_force' %}stat-red{% elif event_type == 'multiple_failures' %}stat-amber{% elif event_type == 'unusual_location' %}stat-purple{% else %}stat-blue{% endif %}">
+      <div class="stat-icon">
+        <i class="fas fa-{% if event_type == 'brute_force' %}bomb{% elif event_type == 'multiple_failures' %}xmark-circle{% elif event_type == 'unusual_location' %}location-dot{% else %}eye{% endif %}"></i>
+      </div>
+      <div class="stat-value">{{ event_type_counts|dict_get:event_type }}</div>
+      <div class="stat-label">{{ label }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ═══ Filter Bar ════════════════════════════════════════════════════════ -->
+<div class="cs-card mb-4">
+  <div class="cs-card-header">
+    <span class="cs-card-title"><i class="fas fa-filter me-1" style="color:var(--cs-accent)"></i>Filter Events</span>
+    <div class="d-flex gap-2">
+      <a href="?resolved=false" class="btn-{% if not showing_resolved %}cs{% else %}cs-outline{% endif %} py-1 px-3" style="font-size:0.8rem">
+        Unresolved
+      </a>
+      <a href="?resolved=true" class="btn-{% if showing_resolved %}cs{% else %}cs-outline{% endif %} py-1 px-3" style="font-size:0.8rem">
+        Resolved
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Events Table ═════════════════════════════════════════════════════ -->
+<div class="cs-card">
+  <div class="cs-card-header">
+    <span class="cs-card-title">
+      <i class="fas fa-bell me-1" style="color:var(--cs-danger)"></i>
+      {% if showing_resolved %}Resolved Events{% else %}Unresolved Security Alerts{% endif %}
+    </span>
+    <span class="badge badge-risk-{% if not showing_resolved and page_obj.paginator.count > 0 %}high{% else %}low{% endif %} px-2">
+      {{ page_obj.paginator.count }} events
+    </span>
+  </div>
+
+  <table class="cs-table" id="events-table">
+    <thead>
+      <tr>
+        <th>Risk</th>
+        <th>Type</th>
+        <th>User</th>
+        <th>IP Address</th>
+        <th>Description</th>
+        <th>Detected</th>
+        {% if not showing_resolved %}<th>Action</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for event in page_obj %}
+      <tr id="event-row-{{ event.id }}">
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <div class="threat-dot" style="background:{% if event.risk_score >= 0.7 %}var(--cs-danger){% elif event.risk_score >= 0.4 %}var(--cs-warning){% else %}var(--cs-success){% endif %};flex-shrink:0"></div>
+            <span class="mono" style="font-size:0.82rem;font-weight:700">{{ event.risk_score|floatformat:2 }}</span>
+          </div>
+        </td>
+        <td>
+          <span class="badge px-2" style="
+            {% if event.event_type == 'brute_force' %}background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2)
+            {% elif event.event_type == 'multiple_failures' %}background:rgba(245,158,11,0.1);color:#fbbf24;border:1px solid rgba(245,158,11,0.2)
+            {% elif event.event_type == 'unusual_location' %}background:rgba(124,58,237,0.1);color:#a78bfa;border:1px solid rgba(124,58,237,0.2)
+            {% else %}background:rgba(0,212,255,0.1);color:var(--cs-accent);border:1px solid rgba(0,212,255,0.2){% endif %}
+          ">{{ event.get_event_type_display }}</span>
+        </td>
+        <td style="font-weight:600;font-size:0.85rem">{{ event.user.username }}</td>
+        <td class="mono" style="font-size:0.8rem;color:var(--cs-muted)">{{ event.ip_address|default:"N/A" }}</td>
+        <td style="font-size:0.8rem;color:var(--cs-muted-2);max-width:280px">{{ event.description|truncatechars:80 }}</td>
+        <td style="font-size:0.8rem;color:var(--cs-muted)">
+          {{ event.detected_at|date:"d/m H:i" }}
+          <div style="font-size:0.7rem">{{ event.detected_at|timesince }} ago</div>
+        </td>
+        {% if not showing_resolved %}
+        <td>
+          <button class="btn btn-sm py-1 px-2"
+            style="background:rgba(16,185,129,0.1);color:#34d399;border:1px solid rgba(16,185,129,0.2);font-size:0.75rem"
+            onclick="resolveEvent('{{ event.id }}', this)"
+            title="Mark as resolved">
+            <i class="fas fa-check me-1"></i>Resolve
+          </button>
+        </td>
+        {% else %}
+        <td>
+          <div style="font-size:0.75rem;color:var(--cs-muted)">
+            Resolved by {{ event.resolved_by.username|default:"—" }}<br>
+            {{ event.resolved_at|date:"d/m H:i" }}
+          </div>
+        </td>
+        {% endif %}
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7" class="text-center py-5" style="color:var(--cs-muted)">
+          <i class="fas fa-shield-check fa-3x mb-3 d-block" style="color:var(--cs-success);opacity:0.5"></i>
+          {% if showing_resolved %}No resolved events yet.{% else %}🎉 No unresolved security events!{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+  <div class="d-flex justify-content-center gap-2 mt-3 pt-3" style="border-top:1px solid var(--cs-border)">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}&resolved={{ showing_resolved|yesno:'true,false' }}" class="btn-cs-outline py-1 px-3">← Prev</a>
+    {% endif %}
+    <span style="color:var(--cs-muted);font-size:0.85rem;line-height:2">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}&resolved={{ showing_resolved|yesno:'true,false' }}" class="btn-cs-outline py-1 px-3">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{% block extra_js %}
+<script>
+function resolveEvent(eventId, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  fetch("{% url 'audit:security_events' %}", {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'event_id=' + eventId
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      const row = document.getElementById('event-row-' + eventId);
+      row.style.transition = 'opacity 0.4s';
+      row.style.opacity = '0';
+      setTimeout(() => row.remove(), 400);
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check me-1"></i>Resolve';
+      alert(data.error || 'Failed to resolve event.');
+    }
+  })
+  .catch(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-check me-1"></i>Resolve';
+    alert('Network error. Please try again.');
+  });
+}
+</script>
+{% endblock %}
+{% endblock %}

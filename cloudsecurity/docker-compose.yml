@@ -1,0 +1,74 @@
+version: '3.9'
+
+services:
+  # ── Django Application ───────────────────────────────────────────────
+  web:
+    build: .
+    container_name: cloudsec_web
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn cloudsec.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 2 --timeout 120"
+    volumes:
+      - .:/app
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+      - logs_data:/app/logs
+    env_file:
+      - .env
+    environment:
+      - DEBUG=False
+      - DB_HOST=db
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - cloudsec_net
+
+  # ── PostgreSQL Database ───────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: cloudsec_db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-cloudsec_db}
+      POSTGRES_USER: ${DB_USER:-cloudsec_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Database password required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-cloudsec_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - cloudsec_net
+
+  # ── NGINX Reverse Proxy ───────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: cloudsec_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployment/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - media_data:/app/media:ro
+      - static_data:/app/staticfiles:ro
+      - ./deployment/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - web
+    restart: unless-stopped
+    networks:
+      - cloudsec_net
+
+volumes:
+  postgres_data:
+  media_data:
+  static_data:
+  logs_data:
+
+networks:
+  cloudsec_net:
+    driver: bridge

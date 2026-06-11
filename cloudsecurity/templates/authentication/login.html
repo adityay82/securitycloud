@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In{% endblock %}
+
+{% block auth_content %}
+<!DOCTYPE html>
+<html><!-- handled by base -->
+<body style="margin:0;padding:0">
+<div class="auth-page">
+
+  <!-- Animated background -->
+  <div class="auth-bg">
+    <div class="auth-grid"></div>
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
+  </div>
+
+  <!-- Left Panel — Branding -->
+  <div class="auth-left d-none d-lg-flex">
+    <div class="auth-brand">
+      <div class="auth-brand-icon mb-4">🛡️</div>
+      <h1 class="auth-brand-title">CloudSec</h1>
+      <p class="auth-brand-sub">Enterprise Cloud Security Platform</p>
+
+      <div class="auth-features mt-5">
+        <div class="auth-feature-item">
+          <div class="auth-feature-icon bg-blue"><i class="fas fa-brain"></i></div>
+          <div>
+            <div class="auth-feature-title">AI-Powered Threat Detection</div>
+            <div class="auth-feature-desc">ML models analyse login patterns in real-time</div>
+          </div>
+        </div>
+        <div class="auth-feature-item">
+          <div class="auth-feature-icon bg-purple"><i class="fas fa-lock"></i></div>
+          <div>
+            <div class="auth-feature-title">Adaptive AES Encryption</div>
+            <div class="auth-feature-desc">Auto-selects AES-128/192/256 based on risk</div>
+          </div>
+        </div>
+        <div class="auth-feature-item">
+          <div class="auth-feature-icon bg-green"><i class="fas fa-shield-check"></i></div>
+          <div>
+            <div class="auth-feature-title">Adaptive Multi-Factor Auth</div>
+            <div class="auth-feature-desc">Risk-based 3-tier verification flow</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="auth-stats mt-5 d-flex gap-4">
+        <div class="text-center">
+          <div class="auth-stat-num">99.9%</div>
+          <div class="auth-stat-label">Uptime</div>
+        </div>
+        <div class="text-center">
+          <div class="auth-stat-num">256-bit</div>
+          <div class="auth-stat-label">Max Encryption</div>
+        </div>
+        <div class="text-center">
+          <div class="auth-stat-num">4</div>
+          <div class="auth-stat-label">ML Models</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel — Login Form -->
+  <div class="auth-right">
+    <div class="auth-card glass-card">
+      <!-- Logo (mobile) -->
+      <div class="d-lg-none text-center mb-4">
+        <div class="d-inline-flex align-items-center gap-2">
+          <span style="font-size: 2rem;">🛡️</span>
+          <span style="font-size: 1.5rem; font-weight: 800; background: linear-gradient(135deg, #00d4ff, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">CloudSec</span>
+        </div>
+      </div>
+
+      <h2 class="auth-form-title">Welcome back</h2>
+      <p class="auth-form-sub">Sign in to your secure account</p>
+
+      {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} py-2 mb-3">
+          <i class="fas fa-{% if message.tags == 'error' or message.tags == 'danger' %}exclamation-circle{% elif message.tags == 'success' %}check-circle{% elif message.tags == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %} me-2"></i>
+          {{ message }}
+        </div>
+        {% endfor %}
+      {% endif %}
+
+      <form method="post" action="{% url 'authentication:login' %}" class="cs-form" autocomplete="on">
+        {% csrf_token %}
+
+        <div class="mb-3">
+          <label for="id_username">Username or Email</label>
+          <div class="input-group-cs">
+            <span class="input-icon"><i class="fas fa-user"></i></span>
+            <input type="text" name="username" id="id_username"
+              class="form-control ps-5" placeholder="Enter username or email"
+              autocomplete="username" required autofocus>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label for="id_password">Password</label>
+          <div class="input-group-cs">
+            <span class="input-icon"><i class="fas fa-lock"></i></span>
+            <input type="password" name="password" id="id_password"
+              class="form-control ps-5 pe-5" placeholder="Enter your password"
+              autocomplete="current-password" required>
+            <button type="button" class="toggle-password" onclick="togglePwd('id_password', this)">
+              <i class="fas fa-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-cs w-100 py-3 mb-3" id="login-btn">
+          <span id="btn-text"><i class="fas fa-shield-halved me-2"></i>Secure Sign In</span>
+          <span id="btn-loading" class="d-none">
+            <span class="spinner-border spinner-border-sm me-2"></span>Verifying...
+          </span>
+        </button>
+
+        <div class="text-center">
+          <a href="{% url 'authentication:forgot_password' %}" class="auth-link">
+            <i class="fas fa-key me-1"></i>Forgot password?
+          </a>
+        </div>
+      </form>
+
+      <div class="auth-divider"><span>New to CloudSec?</span></div>
+
+      <a href="{% url 'authentication:register' %}" class="btn-cs-outline w-100 text-center py-2 d-block">
+        <i class="fas fa-user-plus me-2"></i>Create Account
+      </a>
+
+      <p class="auth-notice mt-3">
+        <i class="fas fa-shield-halved me-1"></i>
+        Protected by multi-factor authentication and ML-based threat detection.
+      </p>
+    </div>
+  </div>
+</div>
+
+<style>
+  .auth-page {
+    display: flex; min-height: 100vh;
+    background: var(--cs-darker);
+    position: relative; overflow: hidden;
+  }
+  .auth-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+  .auth-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+  }
+  .glow-orb {
+    position: absolute; border-radius: 50%;
+    filter: blur(80px); opacity: 0.15;
+  }
+  .orb-1 { width: 500px; height: 500px; background: var(--cs-accent); top: -150px; left: -150px; }
+  .orb-2 { width: 400px; height: 400px; background: var(--cs-accent-2); bottom: -100px; right: -100px; }
+
+  .auth-left {
+    flex: 1; background: rgba(5,8,16,0.6);
+    border-right: 1px solid var(--cs-border);
+    display: flex; align-items: center; justify-content: center;
+    padding: 3rem; position: relative; z-index: 1;
+  }
+  .auth-brand { max-width: 420px; }
+  .auth-brand-icon { font-size: 3.5rem; }
+  .auth-brand-title {
+    font-size: 2.5rem; font-weight: 900; letter-spacing: -1px;
+    background: linear-gradient(135deg, var(--cs-accent) 0%, var(--cs-accent-2) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin: 0;
+  }
+  .auth-brand-sub { color: var(--cs-muted-2); font-size: 1rem; margin-top: 0.25rem; }
+
+  .auth-feature-item {
+    display: flex; align-items: center; gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  .auth-feature-icon {
+    width: 42px; height: 42px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+  }
+  .bg-blue   { background: rgba(0,212,255,0.12); color: var(--cs-accent); }
+  .bg-purple { background: rgba(124,58,237,0.12); color: #a78bfa; }
+  .bg-green  { background: rgba(16,185,129,0.12); color: var(--cs-success); }
+  .auth-feature-title { font-size: 0.9rem; font-weight: 600; }
+  .auth-feature-desc  { font-size: 0.775rem; color: var(--cs-muted-2); margin-top: 0.15rem; }
+
+  .auth-stat-num { font-size: 1.5rem; font-weight: 800; color: var(--cs-accent); }
+  .auth-stat-label { font-size: 0.7rem; color: var(--cs-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  .auth-right {
+    width: 100%; max-width: 480px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 2rem 1.5rem; position: relative; z-index: 1;
+  }
+  @media (min-width: 992px) { .auth-right { max-width: 520px; padding: 3rem 2rem; } }
+
+  .auth-card {
+    width: 100%; padding: 2.25rem;
+    animation: fadeUp 0.5s ease;
+  }
+  .auth-form-title { font-size: 1.6rem; font-weight: 800; margin-bottom: 0.25rem; }
+  .auth-form-sub   { color: var(--cs-muted-2); font-size: 0.875rem; margin-bottom: 1.75rem; }
+
+  .input-group-cs { position: relative; }
+  .input-icon {
+    position: absolute; left: 0.9rem; top: 50%; transform: translateY(-50%);
+    color: var(--cs-muted); font-size: 0.85rem; z-index: 1;
+    pointer-events: none;
+  }
+  .toggle-password {
+    position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--cs-muted); cursor: pointer; z-index: 1;
+    padding: 0.25rem; transition: color 0.2s;
+  }
+  .toggle-password:hover { color: var(--cs-accent); }
+
+  .auth-divider {
+    display: flex; align-items: center; gap: 1rem;
+    margin: 1.25rem 0; color: var(--cs-muted); font-size: 0.8rem;
+  }
+  .auth-divider::before, .auth-divider::after {
+    content: ''; flex: 1; height: 1px; background: var(--cs-border);
+  }
+  .auth-link { color: var(--cs-accent); font-size: 0.845rem; text-decoration: none; }
+  .auth-link:hover { color: #7c3aed; }
+  .auth-notice {
+    font-size: 0.72rem; color: var(--cs-muted); text-align: center; margin: 0;
+  }
+</style>
+
+<script>
+  function togglePwd(id, btn) {
+    const input = document.getElementById(id);
+    const isText = input.type === 'text';
+    input.type = isText ? 'password' : 'text';
+    btn.querySelector('i').className = isText ? 'fas fa-eye' : 'fas fa-eye-slash';
+  }
+
+  // Show loading state
+  document.querySelector('form').addEventListener('submit', function() {
+    document.getElementById('btn-text').classList.add('d-none');
+    document.getElementById('btn-loading').classList.remove('d-none');
+  });
+</script>
+{% endblock %}

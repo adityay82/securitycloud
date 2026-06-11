@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}User Management{% endblock %}
+{% block content %}
+<div class="cs-card">
+  <div class="cs-card-header">
+    <span class="cs-card-title"><i class="fas fa-users me-2" style="color:#00d4ff;"></i>All Users</span>
+    <div class="d-flex gap-2">
+      <input type="text" id="search-input" class="form-control form-control-sm" placeholder="Search users..." style="width:200px;background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.07);color:#e2e8f0;">
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="cs-table" id="users-table">
+      <thead>
+        <tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th>Registered</th><th>Last Login</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+      {% for u in users %}
+      <tr>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <div style="width:34px;height:34px;background:linear-gradient(135deg,#00d4ff,#7c3aed);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;flex-shrink:0;">{{ u.username|first|upper }}</div>
+            <div><div style="font-weight:500;font-size:.875rem;">{{ u.get_full_name|default:u.username }}</div><div style="font-size:.75rem;color:#94a3b8;">@{{ u.username }}</div></div>
+          </div>
+        </td>
+        <td style="color:#94a3b8;font-size:.875rem;">{{ u.email }}</td>
+        <td><span class="badge" style="background:rgba(0,212,255,.15);color:#00d4ff;border:1px solid rgba(0,212,255,.3);">{{ u.role|upper }}</span></td>
+        <td>
+          {% if u.status == 'active' %}<span class="badge" style="background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3);">Active</span>
+          {% elif u.status == 'pending' %}<span class="badge" style="background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3);">Pending</span>
+          {% else %}<span class="badge" style="background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);">Suspended</span>{% endif %}
+        </td>
+        <td style="font-size:.8rem;color:#94a3b8;">{{ u.created_at|date:"M d, Y" }}</td>
+        <td style="font-size:.8rem;color:#94a3b8;">{{ u.last_login|date:"M d, Y"|default:"Never" }}</td>
+        <td>
+          <div class="d-flex gap-1">
+            {% if u.status == 'pending' %}
+            <a href="{% url 'dashboard:approve_user' u.id %}" class="btn btn-sm py-0 px-2" style="background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3);font-size:.7rem;"><i class="fas fa-check"></i></a>
+            {% endif %}
+            {% if u.status != 'suspended' and u.role != 'admin' %}
+            <a href="{% url 'dashboard:suspend_user' u.id %}" class="btn btn-sm py-0 px-2" style="background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);font-size:.7rem;" onclick="return confirm('Suspend {{ u.username }}?')"><i class="fas fa-ban"></i></a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.getElementById('search-input').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#users-table tbody tr').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

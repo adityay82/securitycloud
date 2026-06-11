@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}Two-Factor Verification{% endblock %}
+{% block content %}
+<div style="min-height:70vh;display:flex;align-items:center;justify-content:center;padding:2rem 1rem;">
+
+    <div class="auth-card glass-card" style="max-width:480px;width:100%;">
+      <div class="text-center mb-4">
+        <div class="otp-shield-icon">
+          {% if mfa_level == 'high' %}🚨{% elif mfa_level == 'medium' %}⚠️{% else %}🔐{% endif %}
+        </div>
+        <h2 class="auth-form-title mt-3">Two-Factor Verification</h2>
+        <p class="auth-form-sub">
+          {% if purpose == 'email' %}
+            We sent a verification code to your email address.
+          {% elif purpose == 'password_reset' %}
+            Enter the code sent to your email to reset your password.
+          {% else %}
+            {% if mfa_level == 'high' %}
+              <span style="color: #f87171;"><i class="fas fa-exclamation-triangle me-1"></i>High-risk login detected.</span>
+              Additional verification required.
+            {% elif mfa_level == 'medium' %}
+              <span style="color: #fbbf24;"><i class="fas fa-exclamation-circle me-1"></i>Elevated risk detected.</span>
+              Security question required after OTP.
+            {% else %}
+              Enter the 6-digit code sent to <strong>{{ user.email }}</strong>
+            {% endif %}
+          {% endif %}
+        </p>
+      </div>
+
+      {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} py-2 mb-3">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+
+      <!-- Risk level indicator -->
+      {% if mfa_level == 'high' %}
+      <div class="mfa-risk-alert high mb-4">
+        <i class="fas fa-shield-exclamation me-2"></i>
+        <strong>High Risk Login</strong> — OTP verified logins at this risk level are flagged for administrator review.
+      </div>
+      {% elif mfa_level == 'medium' %}
+      <div class="mfa-risk-alert medium mb-4">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>Medium Risk Login</strong> — You'll be asked a security question after OTP verification.
+      </div>
+      {% endif %}
+
+      <form method="post" action="{% url 'authentication:verify_otp' %}" id="otp-form">
+        {% csrf_token %}
+        <div class="mb-4">
+          <label class="text-center d-block mb-3" style="font-size:0.8rem;color:var(--cs-muted-2);text-transform:uppercase;letter-spacing:1px;">
+            Enter 6-Digit OTP
+          </label>
+          <!-- 6 individual OTP boxes -->
+          <div class="otp-boxes d-flex gap-2 justify-content-center" id="otp-boxes">
+            <input class="otp-box form-control" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="one-time-code">
+            <input class="otp-box form-control" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input class="otp-box form-control" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input class="otp-box form-control" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input class="otp-box form-control" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input class="otp-box form-control" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          </div>
+          <!-- Hidden field that holds the combined OTP -->
+          <input type="hidden" name="otp_code" id="otp-hidden">
+        </div>
+
+        <button type="submit" class="btn-cs w-100 py-3 mb-3" id="verify-btn">
+          <i class="fas fa-check-shield me-2"></i>Verify & Continue
+        </button>
+      </form>
+
+      <div class="text-center">
+        <button class="auth-link btn border-0 bg-transparent" id="resend-btn" onclick="resendOTP()">
+          <i class="fas fa-rotate-right me-1"></i>Resend OTP
+          <span id="resend-timer" class="text-muted ms-1" style="font-size:0.8rem;"></span>
+        </button>
+      </div>
+
+      <div class="text-center mt-3">
+        <a href="{% url 'authentication:login' %}" class="auth-link" style="font-size:0.8rem;">
+          <i class="fas fa-arrow-left me-1"></i>Back to Login
+        </a>
+      </div>
+
+    </div>
+</div>
+
+
+<style>
+  .auth-card { padding:2.25rem; animation:fadeUp 0.5s ease; }
+  .auth-form-title { font-size:1.5rem; font-weight:800; margin-bottom:0.25rem; }
+  .auth-form-sub { color:var(--cs-muted-2); font-size:0.875rem; margin-bottom:0; }
+  .auth-link { color:var(--cs-accent); font-size:0.845rem; text-decoration:none; }
+  .auth-link:hover { color:#7c3aed; }
+  .otp-shield-icon { font-size:3rem; }
+
+  .otp-box {
+    width: 52px !important; height: 58px !important;
+    text-align: center; font-size: 1.5rem; font-weight: 700;
+    border-radius: 12px !important; padding: 0 !important;
+    background: rgba(255,255,255,0.04) !important;
+    border: 2px solid var(--cs-border) !important;
+    color: var(--cs-accent) !important;
+    transition: all 0.2s !important;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .otp-box:focus {
+    background: rgba(0,212,255,0.06) !important;
+    border-color: var(--cs-accent) !important;
+    box-shadow: 0 0 0 3px rgba(0,212,255,0.15) !important;
+    outline: none !important;
+  }
+  .otp-box.filled { border-color: rgba(0,212,255,0.4) !important; background: rgba(0,212,255,0.06) !important; }
+
+  .mfa-risk-alert {
+    border-radius: 10px; padding: 0.75rem 1rem; font-size: 0.825rem;
+  }
+  .mfa-risk-alert.high { background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+  .mfa-risk-alert.medium { background: rgba(245,158,11,0.1); color: #fbbf24; border: 1px solid rgba(245,158,11,0.2); }
+</style>
+
+<script>
+  // OTP box auto-advance
+  const boxes = document.querySelectorAll('.otp-box');
+  const hiddenInput = document.getElementById('otp-hidden');
+
+  boxes.forEach((box, i) => {
+    box.addEventListener('input', (e) => {
+      const val = e.target.value.replace(/\D/g, '');
+      e.target.value = val;
+      if (val) { box.classList.add('filled'); if (i < 5) boxes[i+1].focus(); }
+      else { box.classList.remove('filled'); }
+      updateHidden();
+    });
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !box.value && i > 0) {
+        boxes[i-1].focus();
+        boxes[i-1].value = '';
+        boxes[i-1].classList.remove('filled');
+        updateHidden();
+      }
+    });
+    box.addEventListener('paste', (e) => {
+      const data = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+      [...data].forEach((ch, j) => { if (boxes[j]) { boxes[j].value = ch; boxes[j].classList.add('filled'); } });
+      updateHidden();
+      if (data.length >= 6) boxes[5].focus();
+      e.preventDefault();
+    });
+  });
+
+  function updateHidden() {
+    hiddenInput.value = [...boxes].map(b => b.value).join('');
+  }
+
+  document.getElementById('otp-form').addEventListener('submit', function(e) {
+    updateHidden();
+    if (hiddenInput.value.length !== 6) {
+      e.preventDefault();
+      alert('Please enter all 6 digits.');
+    }
+  });
+
+  // Resend timer
+  let timer = null, seconds = 0;
+  function startResendTimer(s) {
+    seconds = s;
+    const btn = document.getElementById('resend-btn');
+    const timerEl = document.getElementById('resend-timer');
+    btn.disabled = true;
+    timer = setInterval(() => {
+      seconds--;
+      timerEl.textContent = seconds > 0 ? `(${seconds}s)` : '';
+      if (seconds <= 0) { clearInterval(timer); btn.disabled = false; }
+    }, 1000);
+  }
+  startResendTimer(60);
+
+  function resendOTP() {
+    fetch("{% url 'authentication:resend_otp' %}", {
+      method: 'POST',
+      headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json'},
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        // Reset boxes
+        boxes.forEach(b => { b.value = ''; b.classList.remove('filled'); });
+        hiddenInput.value = '';
+        boxes[0].focus();
+        startResendTimer(60);
+        // Show feedback
+        const div = document.createElement('div');
+        div.className = 'alert alert-success py-2 mb-0';
+        div.innerHTML = '<i class="fas fa-check me-2"></i>' + data.message;
+        document.getElementById('otp-form').prepend(div);
+        setTimeout(() => div.remove(), 4000);
+      } else {
+        alert(data.message);
+      }
+    });
+  }
+
+  boxes[0].focus();
+</script>
+{% endblock %}
